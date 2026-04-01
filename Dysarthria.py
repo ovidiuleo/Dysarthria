@@ -11,13 +11,85 @@ st.set_page_config(page_title="Dysarthria Decision Atlas", layout="wide", initia
 
 st.markdown("""
 <style>
+/* ── Utility cards (used in Analysis & Map tabs) ── */
 .dim-card { background:#f0f4ff; border-left:4px solid #4472c4; padding:8px 12px;
             border-radius:4px; margin:4px 0; }
 .step-card { background:#fafafa; border:1px solid #e0e0e0; padding:10px 14px;
              border-radius:6px; margin:6px 0; }
 .step-label { font-weight:600; color:#333; }
-.type-badge { display:inline-block; padding:2px 9px; border-radius:12px;
-              font-size:0.82em; font-weight:600; margin:2px; }
+
+/* ── Reset ALL Streamlit buttons to grey by default ── */
+.stButton > button {
+    background-color: #e8ecf0 !important;
+    color: #3a3a3a !important;
+    border: 1.5px solid #c8cdd4 !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    transition: background-color 0.15s, border-color 0.15s !important;
+}
+.stButton > button:hover {
+    background-color: #d5dbe3 !important;
+    border-color: #aab0bb !important;
+}
+.stButton > button:focus {
+    box-shadow: none !important;
+}
+
+/* ── Nav active button: dark navy ── */
+button[data-nav-active="true"] {
+    background-color: #1e2d42 !important;
+    color: #ffffff !important;
+    border-color: #1e2d42 !important;
+    font-weight: 700 !important;
+}
+button[data-nav-active="true"]:hover {
+    background-color: #2c3e57 !important;
+    border-color: #2c3e57 !important;
+}
+
+/* ── Selected feature button: dark green ── */
+button[data-selected="true"] {
+    background-color: #1a6b35 !important;
+    color: #ffffff !important;
+    border-color: #1a6b35 !important;
+    font-weight: 600 !important;
+}
+button[data-selected="true"]:hover {
+    background-color: #155c2c !important;
+    border-color: #155c2c !important;
+}
+
+/* ── Shelf containers ── */
+.shelf-header {
+    font-weight: 700;
+    font-size: 0.82em;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #2c3e50;
+    padding: 6px 0 4px 14px;
+    border-left: 4px solid #4472c4;
+    margin: 18px 0 8px 0;
+    background: #f7f9fc;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ── Textarea: grey when empty, white when filled ── */
+.stTextArea textarea {
+    background-color: #f0f4ff !important;
+    color: #aaa !important;
+    border: 1px solid #d0d8e4 !important;
+    transition: background-color 0.2s, color 0.2s !important;
+}
+.stTextArea textarea:not(:placeholder-shown) {
+    background-color: #ffffff !important;
+    color: #1a1a1a !important;
+    border-color: #4472c4 !important;
+}
+.stTextArea textarea:focus {
+    background-color: #ffffff !important;
+    color: #1a1a1a !important;
+    border-color: #4472c4 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -867,10 +939,12 @@ _PAGE_LABELS = ["Input & Observations", "Analysis & Reasoning",
                 "System Map", "Educational Exploration", "Export"]
 _PAGE_KEYS   = ["input", "analysis", "map", "edu", "export"]
 
-_nav = st.radio("", _PAGE_LABELS,
-                index=_PAGE_KEYS.index(st.session_state.page),
-                horizontal=True, label_visibility="collapsed")
-st.session_state.page = _PAGE_KEYS[_PAGE_LABELS.index(_nav)]
+_nav_cols = st.columns(5)
+for _i, (_label, _key) in enumerate(zip(_PAGE_LABELS, _PAGE_KEYS)):
+    with _nav_cols[_i]:
+        if st.button(_label, key=f"nav_{_key}", use_container_width=True):
+            st.session_state.page = _key
+            st.rerun()
 st.divider()
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -879,22 +953,23 @@ st.divider()
 if st.session_state.page == "input":
     st.subheader("Select Observed Speech Features")
     st.caption(
-        "Tick all perceptual features observed in the client's speech. "
-        "Features are grouped by subsystem. The analysis will update automatically."
+        "Click the feature buttons to toggle them on or off. "
+        "Grey = not observed · Green = observed. Analysis updates automatically."
     )
 
     for dim_name, dim_info in DIMENSIONS.items():
-        st.markdown(f"**{dim_name}**")
-        cols = st.columns(min(len(dim_info["features"]), 3))
+        # Shelf header
+        st.markdown(f'<div class="shelf-header">{dim_name}</div>', unsafe_allow_html=True)
+        n_cols = min(len(dim_info["features"]), 4)
+        cols = st.columns(n_cols)
         for i, feat in enumerate(dim_info["features"]):
-            with cols[i % 3]:
-                checked = feat in st.session_state.selected_features
-                new_val = st.checkbox(feat, value=checked, key=f"feat_{feat}")
-                if new_val and feat not in st.session_state.selected_features:
-                    st.session_state.selected_features.append(feat)
-                elif not new_val and feat in st.session_state.selected_features:
-                    st.session_state.selected_features.remove(feat)
-        st.markdown("")
+            with cols[i % n_cols]:
+                if st.button(feat, key=f"feat_{feat}", use_container_width=True):
+                    if feat in st.session_state.selected_features:
+                        st.session_state.selected_features.remove(feat)
+                    else:
+                        st.session_state.selected_features.append(feat)
+                    st.rerun()
 
     st.divider()
     st.subheader("Additional Observations")
@@ -909,9 +984,9 @@ if st.session_state.page == "input":
     if obs_txt != st.session_state.observations_text:
         st.session_state.observations_text = obs_txt
 
+    st.divider()
+    st.subheader("Selected Features Summary")
     if sel:
-        st.divider()
-        st.subheader("Selected Features Summary")
         cols_pg = st.columns(min(len(sel), 4))
         for i, feat in enumerate(sel):
             types_for_feat = FEATURE_TYPE_MAP.get(feat, [])
@@ -922,7 +997,7 @@ if st.session_state.page == "input":
                 unsafe_allow_html=True
             )
     else:
-        st.info("No features selected yet. Use the checkboxes above to record your observations.")
+        st.info("No features selected yet. Click the buttons above to record your observations.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2 — ANALYSIS & REASONING
@@ -1316,3 +1391,50 @@ elif st.session_state.page == "export":
         mime="text/plain",
         use_container_width=True,
     )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JS INJECTION — colour nav & feature buttons after every render
+# ═══════════════════════════════════════════════════════════════════════════════
+import json as _json
+import streamlit.components.v1 as _components
+
+_active_label = _PAGE_LABELS[_PAGE_KEYS.index(st.session_state.page)]
+_selected_json = _json.dumps(st.session_state.selected_features)
+_nav_labels_json = _json.dumps(_PAGE_LABELS)
+
+_components.html(f"""
+<script>
+(function() {{
+    const selected = {_selected_json};
+    const navLabels = {_nav_labels_json};
+    const activeLabel = {_json.dumps(_active_label)};
+
+    function applyStyles() {{
+        const doc = window.parent.document;
+        doc.querySelectorAll('button').forEach(function(btn) {{
+            const text = btn.innerText.trim();
+            // Reset custom attributes first
+            btn.removeAttribute('data-selected');
+            btn.removeAttribute('data-nav-active');
+            // Apply
+            if (selected.includes(text)) {{
+                btn.setAttribute('data-selected', 'true');
+            }} else if (text === activeLabel && navLabels.includes(text)) {{
+                btn.setAttribute('data-nav-active', 'true');
+            }}
+        }});
+    }}
+
+    // Run immediately and after short delays to catch late renders
+    applyStyles();
+    setTimeout(applyStyles, 80);
+    setTimeout(applyStyles, 300);
+
+    // Watch for DOM changes (Streamlit rerenders)
+    const obs = new MutationObserver(function() {{
+        setTimeout(applyStyles, 50);
+    }});
+    obs.observe(window.parent.document.body, {{ childList: true, subtree: true }});
+}})();
+</script>
+""", height=0)
