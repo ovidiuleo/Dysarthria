@@ -47,16 +47,28 @@ button[data-nav-active="true"]:hover {
     border-color: #2c3e57 !important;
 }
 
-/* ── Selected feature button: dark green ── */
+/* ── Selected feature button: deep forest green ── */
 button[data-selected="true"] {
-    background-color: #1a6b35 !important;
+    background-color: #0d4f28 !important;
     color: #ffffff !important;
-    border-color: #1a6b35 !important;
+    border-color: #0d4f28 !important;
     font-weight: 600 !important;
 }
 button[data-selected="true"]:hover {
-    background-color: #155c2c !important;
-    border-color: #155c2c !important;
+    background-color: #093d1f !important;
+    border-color: #093d1f !important;
+}
+
+/* ── System Map active type button: teal ── */
+button[data-map-active="true"] {
+    background-color: #0d4f28 !important;
+    color: #ffffff !important;
+    border-color: #0d4f28 !important;
+    font-weight: 600 !important;
+}
+button[data-map-active="true"]:hover {
+    background-color: #093d1f !important;
+    border-color: #093d1f !important;
 }
 
 /* ── Shelf containers ── */
@@ -918,6 +930,8 @@ else:
     scored = {}
     interp = None
 
+active_types = set(scored.keys()) if scored else set()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1140,7 +1154,6 @@ elif st.session_state.page == "map":
     st.subheader("Neurological System Map")
     st.caption("Click a dimension to explore. Types matched in the current session are highlighted.")
 
-    active_types = set(scored.keys()) if scored else set()
     if active_types:
         st.markdown(f"**Active type matches:** {', '.join(sorted(active_types))}")
 
@@ -1384,13 +1397,72 @@ elif st.session_state.page == "export":
     summary_text = "\n".join(lines)
     st.markdown(summary_text)
     st.divider()
-    st.download_button(
-        "⬇  Download Summary (.txt)",
-        data=summary_text,
-        file_name=f"Dysarthria_Atlas_{date.today().isoformat()}.txt",
-        mime="text/plain",
-        use_container_width=True,
-    )
+
+    # ── Export buttons ────────────────────────────────────────────────────────
+    ex1, ex2, ex3 = st.columns(3)
+
+    with ex1:
+        st.download_button(
+            "⬇  Download (.txt)",
+            data=summary_text,
+            file_name=f"Dysarthria_Atlas_{date.today().isoformat()}.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+    with ex2:
+        # Build a clean HTML page for PDF via print dialog
+        def _to_html_body(raw):
+            parts = []
+            for ln in raw.replace("**", "").replace("*", "").split("\n"):
+                if ln.startswith("# "):
+                    parts.append(f"<h1>{ln[2:]}</h1>")
+                elif ln.startswith("## "):
+                    parts.append(f"<h2>{ln[3:]}</h2>")
+                elif ln.startswith("---"):
+                    parts.append("<hr>")
+                elif ln.strip():
+                    parts.append(f"<p>{ln}</p>")
+            return "\n".join(parts)
+
+        _today_str = date.today().strftime('%d %b %Y')
+        _body_html = _to_html_body(summary_text)
+        html_content = (
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            f"<title>Dysarthria Decision Atlas — {_today_str}</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;font-size:13px;margin:40px;color:#1a1a1a}"
+            "h1{font-size:20px;color:#1e2d42;border-bottom:2px solid #4472c4;padding-bottom:6px}"
+            "h2{font-size:15px;color:#2c3e50;margin-top:20px}"
+            "p,li{line-height:1.6}"
+            "hr{border:none;border-top:1px solid #ccc;margin:16px 0}"
+            "</style></head><body>"
+            + _body_html +
+            "</body></html>"
+        )
+        st.download_button(
+            "⬇  Download (.html → print as PDF)",
+            data=html_content,
+            file_name=f"Dysarthria_Atlas_{date.today().isoformat()}.html",
+            mime="text/html",
+            use_container_width=True,
+        )
+
+    with ex3:
+        import streamlit.components.v1 as _exp_comp
+        _exp_comp.html("""
+<style>
+  .print-btn {
+    width: 100%; padding: 0.45rem 1rem;
+    background-color: #1e2d42; color: white;
+    border: none; border-radius: 6px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .print-btn:hover { background-color: #2c3e57; }
+</style>
+<button class="print-btn" onclick="window.parent.print()">🖨  Print page</button>
+""", height=45)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # JS INJECTION — colour nav & feature buttons after every render
@@ -1401,6 +1473,7 @@ import streamlit.components.v1 as _components
 _active_label = _PAGE_LABELS[_PAGE_KEYS.index(st.session_state.page)]
 _selected_json = _json.dumps(st.session_state.selected_features)
 _nav_labels_json = _json.dumps(_PAGE_LABELS)
+_active_types_json = _json.dumps(list(active_types))
 
 _components.html(f"""
 <script>
@@ -1408,6 +1481,7 @@ _components.html(f"""
     const selected = {_selected_json};
     const navLabels = {_nav_labels_json};
     const activeLabel = {_json.dumps(_active_label)};
+    const activeTypes = {_active_types_json};
 
     function applyStyles() {{
         const doc = window.parent.document;
@@ -1419,8 +1493,14 @@ _components.html(f"""
             // Apply
             if (selected.includes(text)) {{
                 btn.setAttribute('data-selected', 'true');
-            }} else if (text === activeLabel && navLabels.includes(text)) {{
+            }}
+            if (text === activeLabel && navLabels.includes(text)) {{
                 btn.setAttribute('data-nav-active', 'true');
+            }}
+            if (activeTypes.includes(text) && !navLabels.includes(text) && !selected.includes(text)) {{
+                btn.setAttribute('data-map-active', 'true');
+            }} else {{
+                btn.removeAttribute('data-map-active');
             }}
         }});
     }}
