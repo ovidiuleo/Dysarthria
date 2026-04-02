@@ -1491,13 +1491,22 @@ _components.html(f"""
             btn.removeAttribute('data-selected');
             btn.removeAttribute('data-nav-active');
             // Apply
-            if (selected.includes(text)) {{
-                btn.setAttribute('data-selected', 'true');
-            }}
+            // Nav: exact match on page label
             if (text === activeLabel && navLabels.includes(text)) {{
                 btn.setAttribute('data-nav-active', 'true');
             }}
-            if (activeTypes.includes(text) && !navLabels.includes(text) && !selected.includes(text)) {{
+
+            // Feature toggles: exact match on selected feature name
+            if (selected.includes(text)) {{
+                btn.setAttribute('data-selected', 'true');
+            }}
+
+            // Map / Edu type buttons: button text starts with a type name
+            // (labels can be "Flaccid", "Flaccid ✓ (3)", or "Flaccid  ✓")
+            const matchedType = activeTypes.find(function(t) {{
+                return text === t || text.startsWith(t + ' ') || text.startsWith(t + '\u00a0');
+            }});
+            if (matchedType && !navLabels.includes(text) && !selected.includes(text)) {{
                 btn.setAttribute('data-map-active', 'true');
             }} else {{
                 btn.removeAttribute('data-map-active');
